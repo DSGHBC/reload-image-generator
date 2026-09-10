@@ -14,14 +14,15 @@ typedef struct {
 
 #define COLOR_INIT {0, 0, 0}
 
-bool loop_running = true;
+volatile sig_atomic_t loop_running = true;
 
 void break_loop(int sig) { loop_running = false; }
 
-#define CHECK_FILE_POINTER(POINTER, FILENAME)                                            \
+// TODO: 修复宏, 使用类OpenGL的内联宏而不是下面的宏
+#define CHECK_FILE_POINTER(POINTER)                                            \
   do {                                                                         \
     if (POINTER == NULL) {                                                     \
-      fprintf(stderr, "Open \"%s\" faliure %d: %s\n", FILENAME, __LINE__, strerror(errno));             \
+      fprintf(stderr, "Open file faliure: %s\n", strerror(errno));             \
       exit(1);                                                                 \
     }                                                                          \
   } while (0)
@@ -43,9 +44,9 @@ int main(int argc, char **argv) {
 
   // === get data form file
   FILE *fp = fopen(input_path, "r");
-  CHECK_FILE_POINTER(fp, "in.fp");
+  CHECK_FILE_POINTER(fp);
   FILE *ppm_p = fopen(output_path, "w+");
-  CHECK_FILE_POINTER(ppm_p, "output.ppm");
+  CHECK_FILE_POINTER(ppm_p);
 
   int ppm_width = 0;
   int ppm_height = 0;
@@ -57,21 +58,29 @@ int main(int argc, char **argv) {
   while (loop_running) {
 
 #ifndef DEBUG
-    // printf("\r\033[0k");
+    printf("\r\033[0k");
     printf("\rReading data...");
     fflush(stdout);
 #endif
 
     sleep(1);
     fp = freopen(input_path, "r", fp);
+    // ppm_p = freopen(output_path, "w", ppm_p);
 
     fseek(fp, 0, SEEK_SET);
 
-    result = fscanf(fp, "[%d, %d]\nmax: %d\n", &ppm_width, &ppm_height,
-                    &ppm_max_value);
-    CHECK_FSCANF_NUMBER(3, "Meat Data");
-    result = fscanf(fp, "Color: {%d, %d, %d}", &cur_c.r, &cur_c.g, &cur_c.b);
-    CHECK_FSCANF_NUMBER(3, "Color Data");
+    char buf[256];
+    if (!fgets(buf, 256, fp)) {
+      fprintf(stderr, "Open file faliure: %s\n", strerror(errno));
+      exit(1);
+    }
+
+    // TODO: 增加注释的识别 字符提取使用`fgets+sscanf()`.
+    //     result = fscanf(fp, "[%d, %d]\nmax: %d\n", &ppm_width, &ppm_height,
+    //                     &ppm_max_value);
+    //     CHECK_FSCANF_NUMBER(3, "Meat Data");
+    //     result = fscanf(fp, "Color: {%d, %d, %d}", &cur_c.r, &cur_c.g,
+    //     &cur_c.b); CHECK_FSCANF_NUMBER(3, "Color Data");
 
 #ifdef DEBUG
     printf("Reading data...\n");
@@ -93,7 +102,6 @@ int main(int argc, char **argv) {
       }
       fflush(ppm_p);
     }
-
     bef_c = cur_c;
   }
 
